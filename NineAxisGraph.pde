@@ -23,10 +23,10 @@ DecimalFormat df = new DecimalFormat("0.00");
 void setup() {
     size(1200, 800, P3D);
     compass = createCompass(240);
-    plane = createCompassPlane();
+    plane = createPlane();
 
     println(Serial.list());
-    serial = new Serial(this, Serial.list()[2], 38400);
+    serial = new Serial(this, Serial.list()[0], 38400);
     serial.write(65);
 }
 
@@ -59,55 +59,15 @@ void draw() {
             heading += 2 * Math.PI;
         
         this.clear();
+        colorMode(RGB, 255);
         background(255);
+        lights();
+
         fill(0);
         printData();
         
-        colorMode(RGB, 255);
-        
-        fill(204);
-        lights();
-        pushMatrix();
-        translate(width/2, height/2, 0);
-        beginShape(LINES);
-        strokeWeight(2);
-        noFill();
-        
-        // x-axis
-        stroke(0,0,255);
-        vertex(0,0,0);
-        vertex((float)g[0] * 200,0,0);
-        
-        // z-axis
-        stroke(0,255,0);
-        vertex(0,0,0);
-        vertex(0,(float)g[2] * -200,0);
-        
-        // y-axis
-        stroke(255,0,0);
-        vertex(0,0,0);
-        vertex(0,0,(float)g[1] * 200);
-        
-        rotateX(radians(10));
-        rotateY(radians(10));
-        //rotateZ(radians(45));
-        endShape();
-        popMatrix();
-        
-        textAlign(LEFT, CENTER);
-        pushMatrix();
-        translate(width/2, height/2, 0);
-        fill(0);
-        stroke(0);
-        text("x", (float)g[0] * 200,0,0);
-        text("y", 0,0,(float)g[1] * 200);
-        text("z", 0,(float)g[2] * -200,0);
-        rotateX(radians(20));
-        rotateY(radians(20));
-        rotateZ(radians(20));
-        popMatrix();
-        
-        drawCompass(width / 5, height/3, 0);
+        drawTriAxis(width/2, height/3, 0);
+        drawCompass(width/5, height/3, 0);
     } catch(Exception e) {
         println(e);
     }
@@ -134,6 +94,54 @@ void printData() {
     text("x: " + df.format(g[0]), 700, 30);
     text("y: " + df.format(g[1]), 780, 30);
     text("z: " + df.format(g[2]), 860, 30);
+}
+
+void drawTriAxis(float x, float y, float z) {
+    int length = 120;
+    pushMatrix();
+    translate(x, y, z);
+    noFill();
+    
+    stroke(204);
+    strokeWeight(4);
+    PShape triPlane = createPlane();
+    triPlane.rotateX(PI/2);
+    triPlane.rotateZ(-PI/2);
+    
+    strokeWeight(2);
+    stroke(0,0,255);
+    PShape xAxis = createAxis((float)g[0] * length);
+    xAxis.rotateX(HALF_PI);
+    stroke(255,0,0);
+    PShape yAxis = createAxis((float)g[1] * length);
+    yAxis.rotateY(HALF_PI);
+    stroke(0,255,0);
+    PShape zAxis = createAxis((float)g[2] * -length);
+    zAxis.rotateZ(HALF_PI);
+
+    PShape triAxis = createShape(GROUP);
+    triAxis.addChild(triPlane);    
+    triAxis.addChild(xAxis);
+    triAxis.addChild(yAxis);
+    triAxis.addChild(zAxis);
+    triAxis.rotateX(-PI/4);
+    triAxis.rotateY(-PI/4);
+    //triAxis.rotateZ(PI/4);
+    shape(triAxis, 0, 0);
+    popMatrix();
+    
+    // text label
+    pushMatrix();
+    translate(x, y, z);
+    rotateX(-PI/4);
+    rotateY(-PI/4);
+    fill(0);
+    stroke(0);
+    textAlign(CENTER, CENTER);
+    text("x", (float)g[0] * (length + 5),0,0);
+    text("y", 0,0,-(float)g[1] * (length + 5));
+    text("z", 0,-(float)g[2] * (length + 5),0);
+    popMatrix();
 }
 
 void drawCompass(float x, float y, float z) {
@@ -167,6 +175,15 @@ void drawCompass(float x, float y, float z) {
     popMatrix();
 }
 
+PShape createAxis(float length) {
+    PShape axis = createShape();
+    axis.beginShape(LINES);
+    axis.vertex(0,0,0);
+    axis.vertex(length,0,0);
+    axis.endShape();
+    return axis;
+}
+
 PShape createCompass(int width) {
     PShape compass = createShape(GROUP);
     PShape circle = createShape(ELLIPSE, -width/2, -width/2, width, width);
@@ -189,7 +206,7 @@ PShape createCompassTick(int degree, int innerRadius, int outerRadius) {
     return tick;
 }
 
-PShape createCompassPlane() {
+PShape createPlane() {
     PShape plane = createShape();
     plane.beginShape(LINES);
     plane.vertex(0,-50,0);
@@ -200,8 +217,8 @@ PShape createCompassPlane() {
     plane.vertex(40, -20, 0);
     plane.endShape();
     plane.beginShape(LINES);
-    plane.vertex(-20, 45, 0);
-    plane.vertex(20, 45, 0);
+    plane.vertex(-20, 50, 0);
+    plane.vertex(20, 50, 0);
     plane.endShape();
     return plane;
 }
