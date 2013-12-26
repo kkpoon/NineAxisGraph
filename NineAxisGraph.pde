@@ -15,10 +15,15 @@ double pressure = 0.0;
 double altitude = 0.0;
 double heading = 0.0;
 
+PShape compass;
+PShape plane;
+
 DecimalFormat df = new DecimalFormat("0.00");
 
 void setup() {
     size(1200, 800, P3D);
+    compass = createCompass(240);
+    plane = createCompassPlane();
 
     println(Serial.list());
     serial = new Serial(this, Serial.list()[2], 38400);
@@ -56,26 +61,7 @@ void draw() {
         this.clear();
         background(255);
         fill(0);
-        text("Accelerometer Raw: ", 10, 30);
-        text("x: " + accel[0], 200, 30);
-        text("y: " + accel[1], 280, 30);
-        text("z: " + accel[2], 360, 30);
-        text("Gyro Raw: ", 10, 45);
-        text("x: " + gyro[0], 200, 45);
-        text("y: " + gyro[1], 280, 45);
-        text("z: " + gyro[2], 360, 45);
-        text("Mag Raw: ", 10, 60);
-        text("mx: " + mag[0], 200, 60);
-        text("my: " + mag[1], 280, 60);
-        text("mz: " + mag[2], 360, 60);
-        text("Heading: " + df.format(degrees((float)heading)), 480, 90);
-        text("Temperature: " + df.format(temperature) + "C", 10, 90);
-        text("Pressure: " + df.format(pressure / 100) + "hPa", 160, 90);
-        text("Altitude: " + df.format(altitude), 320, 90);
-        text("G Force: ", 500, 30);
-        text("x: " + df.format(g[0]), 700, 30);
-        text("y: " + df.format(g[1]), 780, 30);
-        text("z: " + df.format(g[2]), 860, 30);
+        printData();
         
         colorMode(RGB, 255);
         
@@ -121,39 +107,102 @@ void draw() {
         rotateZ(radians(20));
         popMatrix();
         
-        pushMatrix();
-        translate(width/4, height/2, 0);
-        noFill();
-        stroke(0);
-        strokeWeight(1);
-        ellipse(0,0,150,150);
-        beginShape(LINES);
-        for (int i = 0; i < 360; i+=10) {
-            vertex(cos(radians(i - 90)) * 100, sin(radians(i - 90)) * 100, 0);
-            vertex(cos(radians(i - 90)) * 90, sin(radians(i - 90)) * 90,0);
-            
-        }
-        rotate((float)heading * -1.0);
-        endShape();
-        textAlign(CENTER, CENTER);
-        for (int i = 0; i < 360; i+=30) {
-            text(i, cos(radians(i - 90)) * 120, sin(radians(i - 90)) * 120,0);
-        }
-        rotate((float)heading * -1.0);
-        popMatrix();
-        
-        pushMatrix();
-        translate(width/4, height/2, 0);
-        textAlign(LEFT, CENTER);
-        strokeWeight(2);
-        fill(0);
-        beginShape(LINES);
-        vertex(0,-50,0);
-        vertex(0,50,0);
-        endShape();
-        text(degrees((float)heading), -30,-60,0);
-        popMatrix();
+        drawCompass(width / 5, height/3, 0);
     } catch(Exception e) {
         println(e);
     }
 }
+
+void printData() {
+    text("Accelerometer Raw: ", 10, 30);
+    text("x: " + accel[0], 200, 30);
+    text("y: " + accel[1], 280, 30);
+    text("z: " + accel[2], 360, 30);
+    text("Gyro Raw: ", 10, 45);
+    text("x: " + gyro[0], 200, 45);
+    text("y: " + gyro[1], 280, 45);
+    text("z: " + gyro[2], 360, 45);
+    text("Mag Raw: ", 10, 60);
+    text("mx: " + mag[0], 200, 60);
+    text("my: " + mag[1], 280, 60);
+    text("mz: " + mag[2], 360, 60);
+    text("Heading: " + df.format(degrees((float)heading)), 480, 90);
+    text("Temperature: " + df.format(temperature) + "C", 10, 90);
+    text("Pressure: " + df.format(pressure / 100) + "hPa", 160, 90);
+    text("Altitude: " + df.format(altitude), 320, 90);
+    text("G Force: ", 500, 30);
+    text("x: " + df.format(g[0]), 700, 30);
+    text("y: " + df.format(g[1]), 780, 30);
+    text("z: " + df.format(g[2]), 860, 30);
+}
+
+void drawCompass(float x, float y, float z) {
+    float rotation = (float)heading * -1.0;
+    pushMatrix();
+    translate(x, y, z);
+    rotate(rotation);
+    shape(compass, 0, 0);
+    popMatrix();
+    
+    for (int i = 0; i < 360; i+=30) {
+        pushMatrix();
+        translate(x, y, z);
+        rotate(radians(i));
+        rotate(rotation);
+        stroke(0);
+        strokeWeight(1);
+        fill(0);
+        textAlign(CENTER, CENTER);
+        text(i, 0, -110, 0);
+        popMatrix();
+    }
+    
+    pushMatrix();
+    translate(x, y, z);
+    textAlign(LEFT, CENTER);
+    strokeWeight(2);
+    fill(0);
+    shape(plane, 0, 0);
+    text(degrees((float)heading), -30,-60,0);
+    popMatrix();
+}
+
+PShape createCompass(int width) {
+    PShape compass = createShape(GROUP);
+    PShape circle = createShape(ELLIPSE, -width/2, -width/2, width, width);
+    compass.addChild(circle);
+    int inner = width/2 - 30;
+    int outer = width/2 - 20;
+    for (int i = 0; i < 360; i+=10) {
+        compass.addChild(createCompassTick(i, inner, outer));
+    }
+    return compass;
+}
+
+PShape createCompassTick(int degree, int innerRadius, int outerRadius) {
+    PShape tick = createShape();
+    tick.beginShape(LINES);
+    tick.vertex(0, -innerRadius, 0);
+    tick.vertex(0, -outerRadius, 0);
+    tick.endShape();
+    tick.rotate(radians(degree));
+    return tick;
+}
+
+PShape createCompassPlane() {
+    PShape plane = createShape();
+    plane.beginShape(LINES);
+    plane.vertex(0,-50,0);
+    plane.vertex(0,50,0);
+    plane.endShape();
+    plane.beginShape(LINES);
+    plane.vertex(-40, -20, 0);
+    plane.vertex(40, -20, 0);
+    plane.endShape();
+    plane.beginShape(LINES);
+    plane.vertex(-20, 45, 0);
+    plane.vertex(20, 45, 0);
+    plane.endShape();
+    return plane;
+}
+
