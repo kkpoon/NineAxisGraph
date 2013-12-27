@@ -6,6 +6,8 @@ import java.text.DecimalFormat;
 
 Serial serial;
 
+double GYRO_SENS = 0.249337737;
+
 byte[] buffer = new byte[1024];
 
 int[] accel = new int[3];
@@ -16,6 +18,8 @@ double temperature = 0.0;
 double pressure = 0.0;
 double altitude = 0.0;
 double heading = 0.0;
+
+int time = 0;
 
 ArrayList<Double>[] accHist = new ArrayList[3];
 
@@ -39,6 +43,8 @@ void setup() {
     println(Serial.list());
     serial = new Serial(this, Serial.list()[0], 38400);
     serial.write(65);
+    
+    time = millis();
 }
 
 void draw() {
@@ -85,6 +91,7 @@ void draw() {
     } catch(Exception e) {
         println(e);
     }
+    time = millis();
 }
 
 void printData() {
@@ -171,6 +178,20 @@ void drawTriAxis(float x, float y, float z) {
     PShape triPlane = createPlane();
     triPlane.rotateX(PI/2);
     triPlane.rotateZ(-PI/2);
+    
+    triPlane.rotateX(-atan2((float)g[0], (float)g[2]));
+    triPlane.rotateY(atan2((float)g[1], (float)g[2]));
+
+//  TODO sensor fusion (acc + gyro)    
+//    int currentTime = millis();
+//    double xRot = radians(gyro[0]) / GYRO_SENS * (currentTime - time) / 1000;
+//    double yRot = radians(gyro[1]) / GYRO_SENS * (currentTime - time) / 1000;
+//    double zRot = radians(gyro[2]) / GYRO_SENS * (currentTime - time) / 1000;
+//    
+//    triPlane.rotateX((float)yRot);
+//    triPlane.rotateY((float)zRot);
+//    triPlane.rotateZ((float)xRot);
+//    
     
     strokeWeight(2);
     stroke(0,0,255);
