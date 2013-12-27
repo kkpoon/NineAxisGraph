@@ -6,7 +6,8 @@ import java.text.DecimalFormat;
 
 Serial serial;
 
-double GYRO_SENS = 0.249337737;
+final float ALPHA = 0.5f;
+final double GYRO_SENS = 0.249337737;
 
 byte[] buffer = new byte[1024];
 
@@ -68,7 +69,8 @@ void draw() {
         altitude = Double.parseDouble(data[11]);
         
         for (int i = 0; i < accel.length; i++) {
-            g[i] = norm(accel[i], 0.0, 256.0);
+            // using low-pass filter
+            g[i] = norm(accel[i], 0.0, 256.0) * ALPHA + g[i] * (1.0 - ALPHA);
             accHist[i].remove(0);
             accHist[i].add(new Double(g[i]));
         }
