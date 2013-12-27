@@ -1,5 +1,7 @@
 import processing.serial.*;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.ArrayList;
 import java.text.DecimalFormat;
 
 Serial serial;
@@ -15,6 +17,8 @@ double pressure = 0.0;
 double altitude = 0.0;
 double heading = 0.0;
 
+ArrayList<Double>[] accHist = new ArrayList[3];
+
 PShape compass;
 PShape plane;
 
@@ -24,6 +28,13 @@ void setup() {
     size(1200, 800, P3D);
     compass = createCompass(240);
     plane = createPlane();
+
+    for (int i = 0; i < accHist.length; i++) {
+      accHist[i] = new ArrayList<Double>(500);
+      for (int j = 0; j < 500; j++) {
+        accHist[i].add(new Double(0.0));
+      }
+    };
 
     println(Serial.list());
     serial = new Serial(this, Serial.list()[0], 38400);
@@ -52,6 +63,8 @@ void draw() {
         
         for (int i = 0; i < accel.length; i++) {
             g[i] = norm(accel[i], 0.0, 256.0);
+            accHist[i].remove(0);
+            accHist[i].add(new Double(g[i]));
         }
         
         heading = atan2(mag[1], mag[0]);
@@ -66,8 +79,9 @@ void draw() {
         fill(0);
         printData();
         
-        drawTriAxis(width/2, height/3, 0);
-        drawCompass(width/5, height/3, 0);
+        drawTriAxis(750, 200, 0);
+        drawCompass(1000, 150, 0);
+        drawHist(0, height/2, 0);
     } catch(Exception e) {
         println(e);
     }
@@ -90,10 +104,60 @@ void printData() {
     text("Temperature: " + df.format(temperature) + "C", 10, 90);
     text("Pressure: " + df.format(pressure / 100) + "hPa", 160, 90);
     text("Altitude: " + df.format(altitude), 320, 90);
-    text("G Force: ", 500, 30);
-    text("x: " + df.format(g[0]), 700, 30);
-    text("y: " + df.format(g[1]), 780, 30);
-    text("z: " + df.format(g[2]), 860, 30);
+    text("G Force: ", 10, 120);
+    text("x: " + df.format(g[0]), 100, 120);
+    text("y: " + df.format(g[1]), 180, 120);
+    text("z: " + df.format(g[2]), 260, 120);
+}
+
+void drawHist(float x, float y, float z) {
+    int histHeight = 50;
+    
+    pushMatrix();
+    stroke(255, 0, 0);
+    strokeWeight(1);
+    translate(x, y, z);
+    beginShape(LINES);
+    vertex(5, 0, 0);
+    vertex(accHist[0].size(), 0, 0);
+    endShape();
+    stroke(0, 0, 0);
+    beginShape(LINES);
+    for (int i = 0; i < accHist[0].size(); i++) {
+        vertex(i+5, accHist[0].get(i).floatValue() * histHeight, 0);
+    }
+    endShape();
+    popMatrix();
+    
+    pushMatrix();
+    translate(x, y + 100, z);
+    stroke(255, 0, 0);
+    beginShape(LINES);
+    vertex(5, 0, 0);
+    vertex(accHist[1].size(), 0, 0);
+    endShape();
+    stroke(0, 0, 0);
+    beginShape(LINES);
+    for (int i = 0; i < accHist[1].size(); i++) {
+        vertex(i+5, accHist[1].get(i).floatValue() * histHeight, 0);
+    }
+    endShape();
+    popMatrix();
+    
+    pushMatrix();
+    translate(x, y + 200, z);
+    stroke(255, 0, 0);
+    beginShape(LINES);
+    vertex(5, 0, 0);
+    vertex(accHist[2].size(), 0, 0);
+    endShape();
+    stroke(0, 0, 0);
+    beginShape(LINES);
+    for (int i = 0; i < accHist[2].size(); i++) {
+        vertex(i+5, accHist[2].get(i).floatValue() * histHeight, 0);
+    }
+    endShape();
+    popMatrix();
 }
 
 void drawTriAxis(float x, float y, float z) {
