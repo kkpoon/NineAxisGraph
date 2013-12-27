@@ -7,7 +7,8 @@ import java.text.DecimalFormat;
 Serial serial;
 
 final float ALPHA = 0.5f;
-final double GYRO_SENS = 0.249337737;
+final float GYRO_ACCEL_RATIO = 0.5f;
+final float GYRO_SENS = 70.0f; // mdps
 
 byte[] buffer = new byte[1024];
 
@@ -15,10 +16,14 @@ int[] accel = new int[3];
 int[] gyro = new int[3];
 int[] mag = new int[3];
 double[] g = new double[3];
+double[] rot = new double[3];
+boolean rotReady = false;
 double temperature = 0.0;
 double pressure = 0.0;
 double altitude = 0.0;
 double heading = 0.0;
+float pitch = 0.0f;
+float roll = 0.0f;
 
 int time = 0;
 
@@ -35,65 +40,87 @@ void setup() {
     plane = createPlane();
 
     for (int i = 0; i < accHist.length; i++) {
-      accHist[i] = new ArrayList<Double>(500);
-      for (int j = 0; j < 500; j++) {
-        accHist[i].add(new Double(0.0));
-      }
+        accHist[i] = new ArrayList<Double>(500);
+        for (int j = 0; j < 500; j++) {
+            accHist[i].add(new Double(0.0));
+        }
     };
 
     println(Serial.list());
     serial = new Serial(this, Serial.list()[0], 38400);
     serial.write(65);
-    
+
     time = millis();
 }
 
 void draw() {
     Arrays.fill(buffer, (byte)0);
     serial.readBytesUntil('\n', buffer);
+    int current = millis();
     String in = new String(buffer);
     String[] data = in.trim().split(",");
     if (data.length != 12) return;
     try {
-        accel[0] = Integer.parseInt(data[0]);
-        accel[1] = Integer.parseInt(data[1]);
-        accel[2] = Integer.parseInt(data[2]);
-        gyro[0] = Integer.parseInt(data[3]);
-        gyro[1] = Integer.parseInt(data[4]);
-        gyro[2] = Integer.parseInt(data[5]);
-        mag[0] = Integer.parseInt(data[6]);
-        mag[1] = Integer.parseInt(data[7]);
-        mag[2] = Integer.parseInt(data[8]);
-        temperature = Double.parseDouble(data[9]);
-        pressure = Double.parseDouble(data[10]);
-        altitude = Double.parseDouble(data[11]);
-        
-        for (int i = 0; i < accel.length; i++) {
-            // using low-pass filter
-            g[i] = norm(accel[i], 0.0, 256.0) * ALPHA + g[i] * (1.0 - ALPHA);
-            accHist[i].remove(0);
-            accHist[i].add(new Double(g[i]));
-        }
-        
-        heading = atan2(mag[1], mag[0]);
-        if (heading < 0)
-            heading += 2 * Math.PI;
-        
+        parseData(data);
+        calculateData();
+
         this.clear();
         colorMode(RGB, 255);
         background(255);
         lights();
-
         fill(0);
+
         printData();
-        
         drawTriAxis(750, 200, 0);
         drawCompass(1000, 150, 0);
         drawHist(0, height/2, 0);
-    } catch(Exception e) {
+    } 
+    catch(Exception e) {
         println(e);
     }
-    time = millis();
+    time = current;
+}
+
+void parseData(String[] data) {
+    accel[0] = Integer.parseInt(data[0]);
+    accel[1] = Integer.parseInt(data[1]);
+    accel[2] = Integer.parseInt(data[2]);
+    gyro[0] = Integer.parseInt(data[3]);
+    gyro[1] = Integer.parseInt(data[4]);
+    gyro[2] = Integer.parseInt(data[5]);
+    mag[0] = Integer.parseInt(data[6]);
+    mag[1] = Integer.parseInt(data[7]);
+    mag[2] = Integer.parseInt(data[8]);
+    temperature = Double.parseDouble(data[9]);
+    pressure = Double.parseDouble(data[10]);
+    altitude = Double.parseDouble(data[11]);
+}
+
+void calculateData() {
+    for (int i = 0; i < accel.length; i++) {
+        // using low-pass filter
+        g[i] = norm(accel[i], 0.0, 256.0) * ALPHA + g[i] * (1.0 - ALPHA);
+        accHist[i].remove(0);
+        accHist[i].add(new Double(g[i]));
+    }
+    
+    pitch = -atan2((float)g[0], (float)g[2]);
+    roll = atan2((float)g[1], (float)g[2]);
+
+    // TODO tilt-compensated not working
+    //float xh = mag[0] * cos(pitch) + mag[2] * sin(pitch);
+    //float yh = mag[0] * sin(roll) * sin(pitch) + mag[1] * cos(roll) - mag[2] * sin(roll) * cos(pitch);
+    heading = atan2(mag[1], mag[0]);
+    if (heading < 0) {
+        heading += 2 * Math.PI;
+    }
+    
+    if (!rotReady) {
+        rot[0] = g[0];
+        rot[1] = g[1];
+        rot[2] = heading;
+        rotReady = true;
+    }
 }
 
 void printData() {
@@ -121,7 +148,7 @@ void printData() {
 
 void drawHist(float x, float y, float z) {
     int histHeight = 50;
-    
+
     pushMatrix();
     stroke(255, 0, 0);
     strokeWeight(1);
@@ -137,7 +164,7 @@ void drawHist(float x, float y, float z) {
     }
     endShape();
     popMatrix();
-    
+
     pushMatrix();
     translate(x, y + 100, z);
     stroke(255, 0, 0);
@@ -152,7 +179,7 @@ void drawHist(float x, float y, float z) {
     }
     endShape();
     popMatrix();
-    
+
     pushMatrix();
     translate(x, y + 200, z);
     stroke(255, 0, 0);
@@ -174,35 +201,35 @@ void drawTriAxis(float x, float y, float z) {
     pushMatrix();
     translate(x, y, z);
     noFill();
-    
+
     stroke(204);
     strokeWeight(4);
     PShape triPlane = createPlane();
     triPlane.rotateX(PI/2);
     triPlane.rotateZ(-PI/2);
-    
-    triPlane.rotateX(-atan2((float)g[0], (float)g[2]));
-    triPlane.rotateY(atan2((float)g[1], (float)g[2]));
 
-//  TODO sensor fusion (acc + gyro)    
-//    int currentTime = millis();
-//    double xRot = radians(gyro[0]) / GYRO_SENS * (currentTime - time) / 1000;
-//    double yRot = radians(gyro[1]) / GYRO_SENS * (currentTime - time) / 1000;
-//    double zRot = radians(gyro[2]) / GYRO_SENS * (currentTime - time) / 1000;
-//    
-//    triPlane.rotateX((float)yRot);
-//    triPlane.rotateY((float)zRot);
-//    triPlane.rotateZ((float)xRot);
-//    
+    //float yaw = (float)heading;
+
+    int currentTime = millis();
+    double xRot = radians(gyro[0] / GYRO_SENS) * (currentTime - time) / 1000;
+    double yRot = radians(gyro[1] / GYRO_SENS) * (currentTime - time) / 1000;
+    double zRot = radians(gyro[2] / GYRO_SENS) * (currentTime - time) / 1000;
     
+    rot[0] = (GYRO_ACCEL_RATIO * (rot[0] + xRot) + (1 - GYRO_ACCEL_RATIO) * pitch);
+    rot[1] = (GYRO_ACCEL_RATIO * (rot[1] + yRot) + (1 - GYRO_ACCEL_RATIO) * roll);
+    //rot[2] = (GYRO_ACCEL_RATIO * (rot[2] + zRot) + (1 - GYRO_ACCEL_RATIO) * yaw);
+    triPlane.rotateX((float)rot[0]);
+    triPlane.rotateY((float)rot[1]);
+    //triPlane.rotateZ((float)rot[2]);
+
     strokeWeight(2);
-    stroke(0,0,255);
+    stroke(0, 0, 255);
     PShape xAxis = createAxis((float)g[0] * length);
     xAxis.rotateX(HALF_PI);
-    stroke(255,0,0);
+    stroke(255, 0, 0);
     PShape yAxis = createAxis((float)g[1] * length);
     yAxis.rotateY(HALF_PI);
-    stroke(0,255,0);
+    stroke(0, 255, 0);
     PShape zAxis = createAxis((float)g[2] * -length);
     zAxis.rotateZ(HALF_PI);
 
@@ -216,7 +243,7 @@ void drawTriAxis(float x, float y, float z) {
     //triAxis.rotateZ(PI/4);
     shape(triAxis, 0, 0);
     popMatrix();
-    
+
     // text label
     pushMatrix();
     translate(x, y, z);
@@ -225,9 +252,9 @@ void drawTriAxis(float x, float y, float z) {
     fill(0);
     stroke(0);
     textAlign(CENTER, CENTER);
-    text("x", (float)g[0] * (length + 5),0,0);
-    text("y", 0,0,-(float)g[1] * (length + 5));
-    text("z", 0,-(float)g[2] * (length + 5),0);
+    text("x", (float)g[0] * (length + 5), 0, 0);
+    text("y", 0, 0, -(float)g[1] * (length + 5));
+    text("z", 0, -(float)g[2] * (length + 5), 0);
     popMatrix();
 }
 
@@ -238,7 +265,7 @@ void drawCompass(float x, float y, float z) {
     rotate(rotation);
     shape(compass, 0, 0);
     popMatrix();
-    
+
     for (int i = 0; i < 360; i+=30) {
         pushMatrix();
         translate(x, y, z);
@@ -251,22 +278,22 @@ void drawCompass(float x, float y, float z) {
         text(i, 0, -110, 0);
         popMatrix();
     }
-    
+
     pushMatrix();
     translate(x, y, z);
     textAlign(LEFT, CENTER);
     strokeWeight(2);
     fill(0);
     shape(plane, 0, 0);
-    text(degrees((float)heading), -30,-60,0);
+    text(degrees((float)heading), -30, -60, 0);
     popMatrix();
 }
 
 PShape createAxis(float length) {
     PShape axis = createShape();
     axis.beginShape(LINES);
-    axis.vertex(0,0,0);
-    axis.vertex(length,0,0);
+    axis.vertex(0, 0, 0);
+    axis.vertex(length, 0, 0);
     axis.endShape();
     return axis;
 }
@@ -296,8 +323,8 @@ PShape createCompassTick(int degree, int innerRadius, int outerRadius) {
 PShape createPlane() {
     PShape plane = createShape();
     plane.beginShape(LINES);
-    plane.vertex(0,-50,0);
-    plane.vertex(0,50,0);
+    plane.vertex(0, -50, 0);
+    plane.vertex(0, 50, 0);
     plane.endShape();
     plane.beginShape(LINES);
     plane.vertex(-40, -20, 0);
