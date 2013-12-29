@@ -47,7 +47,7 @@ void setup() {
     };
 
     println(Serial.list());
-    serial = new Serial(this, Serial.list()[0], 38400);
+    serial = new Serial(this, Serial.list()[2], 38400);
     serial.write(65);
 
     time = millis();
@@ -62,7 +62,7 @@ void draw() {
     if (data.length != 12) return;
     try {
         parseData(data);
-        calculateData();
+        calculateData(current);
 
         this.clear();
         colorMode(RGB, 255);
@@ -96,7 +96,7 @@ void parseData(String[] data) {
     altitude = Double.parseDouble(data[11]);
 }
 
-void calculateData() {
+void calculateData(int currentTime) {
     for (int i = 0; i < accel.length; i++) {
         // using low-pass filter
         g[i] = norm(accel[i], 0.0, 256.0) * ALPHA + g[i] * (1.0 - ALPHA);
@@ -108,9 +108,17 @@ void calculateData() {
     roll = atan2((float)g[1], (float)g[2]);
 
     // TODO tilt-compensated not working
-    //float xh = mag[0] * cos(pitch) + mag[2] * sin(pitch);
-    //float yh = mag[0] * sin(roll) * sin(pitch) + mag[1] * cos(roll) - mag[2] * sin(roll) * cos(pitch);
-    heading = atan2(mag[1], mag[0]);
+    float xh;
+    float yh;
+    if (mag[2] == -4096) {
+        xh = mag[0]* cos(pitch);
+        yh = mag[1] * cos(roll);
+    } else {
+        xh = mag[0] * cos(pitch) + -1 * mag[2] * sin(pitch);
+        yh = mag[0] * sin(roll) * sin(pitch) + mag[1] * cos(roll) - -1 * mag[2] * sin(roll) * cos(pitch);
+    }
+    heading = atan2(yh, xh);
+    //heading = atan2(mag[1], mag[0]);
     if (heading < 0) {
         heading += 2 * Math.PI;
     }
@@ -120,6 +128,16 @@ void calculateData() {
         rot[1] = g[1];
         rot[2] = heading;
         rotReady = true;
+    } else {
+        float yaw = (float)heading;
+
+        double xRot = radians(gyro[0] / GYRO_SENS) * (currentTime - time) / 1000;
+        double yRot = radians(gyro[1] / GYRO_SENS) * (currentTime - time) / 1000;
+        double zRot = radians(gyro[2] / GYRO_SENS) * (currentTime - time) / 1000;
+        
+        rot[0] = (GYRO_ACCEL_RATIO * (rot[0] + xRot) + (1 - GYRO_ACCEL_RATIO) * pitch);
+        rot[1] = (GYRO_ACCEL_RATIO * (rot[1] + yRot) + (1 - GYRO_ACCEL_RATIO) * roll);
+        rot[2] = (GYRO_ACCEL_RATIO * (rot[2] + zRot) + (1 - GYRO_ACCEL_RATIO) * yaw);
     }
 }
 
@@ -133,17 +151,21 @@ void printData() {
     text("y: " + gyro[1], 280, 45);
     text("z: " + gyro[2], 360, 45);
     text("Mag Raw: ", 10, 60);
-    text("mx: " + mag[0], 200, 60);
-    text("my: " + mag[1], 280, 60);
-    text("mz: " + mag[2], 360, 60);
-    text("Heading: " + df.format(degrees((float)heading)), 480, 90);
-    text("Temperature: " + df.format(temperature) + "C", 10, 90);
-    text("Pressure: " + df.format(pressure / 100) + "hPa", 160, 90);
-    text("Altitude: " + df.format(altitude), 320, 90);
-    text("G Force: ", 10, 120);
-    text("x: " + df.format(g[0]), 100, 120);
-    text("y: " + df.format(g[1]), 180, 120);
-    text("z: " + df.format(g[2]), 260, 120);
+    text("x: " + mag[0], 200, 60);
+    text("y: " + mag[1], 280, 60);
+    text("z: " + mag[2], 360, 60);
+    text("G Force: ", 10, 75);
+    text("x: " + df.format(g[0]), 200, 75);
+    text("y: " + df.format(g[1]), 280, 75);
+    text("z: " + df.format(g[2]), 360, 75);
+    
+    text("Temperature: " + df.format(temperature) + "C", 10, 100);
+    text("Pressure: " + df.format(pressure / 100) + "hPa", 160, 100);
+    text("Altitude: " + df.format(altitude), 320, 100);
+    
+    text("Heading: " + df.format(degrees((float)heading)), 10, 115);
+    text("Pitch: " + df.format(degrees((float)pitch)), 160, 115);
+    text("Roll: " + df.format(degrees((float)roll)), 320, 115);
 }
 
 void drawHist(float x, float y, float z) {
@@ -208,16 +230,6 @@ void drawTriAxis(float x, float y, float z) {
     triPlane.rotateX(PI/2);
     triPlane.rotateZ(-PI/2);
 
-    //float yaw = (float)heading;
-
-    int currentTime = millis();
-    double xRot = radians(gyro[0] / GYRO_SENS) * (currentTime - time) / 1000;
-    double yRot = radians(gyro[1] / GYRO_SENS) * (currentTime - time) / 1000;
-    double zRot = radians(gyro[2] / GYRO_SENS) * (currentTime - time) / 1000;
-    
-    rot[0] = (GYRO_ACCEL_RATIO * (rot[0] + xRot) + (1 - GYRO_ACCEL_RATIO) * pitch);
-    rot[1] = (GYRO_ACCEL_RATIO * (rot[1] + yRot) + (1 - GYRO_ACCEL_RATIO) * roll);
-    //rot[2] = (GYRO_ACCEL_RATIO * (rot[2] + zRot) + (1 - GYRO_ACCEL_RATIO) * yaw);
     triPlane.rotateX((float)rot[0]);
     triPlane.rotateY((float)rot[1]);
     //triPlane.rotateZ((float)rot[2]);
